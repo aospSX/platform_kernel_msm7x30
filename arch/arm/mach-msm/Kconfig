@@ -1031,6 +1031,9 @@ config MSM_SERIAL_DEBUGGER_CONSOLE
 	  Enables a console so that printk messages are displayed on
 	  the debugger serial port as the occur.
 
+config MSM_SMD_PKG3
+	bool
+
 config MSM_SMD
 	default y
 	bool "MSM Shared Memory Driver (SMD)"
