@@ -317,7 +317,7 @@ struct smd_shared_v1 {
 struct smd_shared_v2 {
 	struct smd_half_channel ch0;
 	struct smd_half_channel ch1;
-};	
+};
 
 struct smd_channel {
 	volatile struct smd_half_channel *send;
@@ -368,6 +368,8 @@ extern spinlock_t smem_lock;
 void *smem_find(unsigned id, unsigned size);
 void *smem_item(unsigned id, unsigned *size);
 uint32_t raw_smsm_get_state(enum smsm_state_item item);
+
+extern void msm_init_last_radio_log(struct module *);
 
 #if defined(CONFIG_ARCH_MSM7X30)
 static inline void msm_a2m_int(uint32_t irq)
