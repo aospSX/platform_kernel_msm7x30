@@ -24,6 +24,9 @@
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
 #include <linux/list.h>
+#include <linux/io.h>
+
+#include <mach/msm_iomap.h>
 
 struct smem_heap_info {
 	unsigned initialized;
@@ -365,5 +368,18 @@ extern spinlock_t smem_lock;
 void *smem_find(unsigned id, unsigned size);
 void *smem_item(unsigned id, unsigned *size);
 uint32_t raw_smsm_get_state(enum smsm_state_item item);
+
+#if defined(CONFIG_ARCH_MSM7X30)
+static inline void msm_a2m_int(uint32_t irq)
+{
+	writel(1 << irq, MSM_GCC_BASE + 0x8);
+}
+#else
+static inline void msm_a2m_int(uint32_t irq)
+{
+	writel(1, MSM_CSR_BASE + 0x400 + (irq * 4));
+}
+#endif /* CONFIG_ARCH_MSM7X30 */
+
 
 #endif
