@@ -3,16 +3,17 @@ obj-y += io.o dma.o memory.o
 ifdef CONFIG_ARCH_MSM8X60
 obj-y += timer-8x60.o clock-core.o clock-voter.o
 else
-obj-y += timer.o clock.o
+obj-y += timer.o
 endif
 obj-y += subsystem_map.o
 
 ifndef CONFIG_ARCH_MSM8X60
-obj-y += irq.o devices.o pmic.o vreg.o pwrtest.o
+obj-y += irq.o devices.o pmic.o pwrtest.o
 endif
 
+obj-$(CONFIG_MSM_PROC_COMM) += proc_comm.o clock-pcom.o vreg.o
+obj-$(CONFIG_MSM_PROC_COMM) += clock.o
 obj-$(CONFIG_ARCH_QSD8X50) += sirc.o
-obj-y += proc_comm.o
 obj-$(CONFIG_ARCH_MSM_ARM11) += acpuclock-arm11.o idle.o
 obj-$(CONFIG_ARCH_QSD8X50) += arch-init-scorpion.o acpuclock-scorpion.o
 obj-$(CONFIG_ARCH_MSM7X30) += acpuclock-7x30.o internal_power_rail.o
