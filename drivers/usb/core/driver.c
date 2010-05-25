@@ -1751,9 +1751,8 @@ static int usb_runtime_suspend(struct device *dev)
 		}
 
 		/* Prevent the parent from suspending immediately after */
-		else if (udev->parent) {
+		else if (udev->parent)
 			udev->parent->last_busy = jiffies;
-		}
 	}
 
 	/* Runtime suspend for a USB interface doesn't mean anything. */
@@ -1795,7 +1794,7 @@ static int usb_runtime_idle(struct device *dev)
 	return 0;
 }
 
-static struct dev_pm_ops usb_bus_pm_ops = {
+static const struct dev_pm_ops usb_bus_pm_ops = {
 	.runtime_suspend =	usb_runtime_suspend,
 	.runtime_resume =	usb_runtime_resume,
 	.runtime_idle =		usb_runtime_idle,
@@ -1803,7 +1802,7 @@ static struct dev_pm_ops usb_bus_pm_ops = {
 
 #else
 
-#define usb_bus_pm_ops	(*(struct dev_pm_ops *) NULL)
+#define usb_bus_pm_ops	(*(const struct dev_pm_ops *) NULL)
 
 #endif /* CONFIG_USB_SUSPEND */
 
