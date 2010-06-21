@@ -1089,6 +1089,8 @@ static void composite_disconnect(struct usb_gadget *gadget)
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (cdev->config)
 		reset_config(cdev);
+	if (composite->disconnect)
+		composite->disconnect(cdev);
 
 	cdev->connected = 0;
 	schedule_work(&cdev->switch_work);
