@@ -137,6 +137,7 @@ else
 obj-$(CONFIG_FB_MSM)              += msm/
 endif
 obj-$(CONFIG_FB_NUC900)           += nuc900fb.o
+obj-$(CONFIG_FB_JZ4740)		  += jz4740_fb.o
 
 # Platform or fallback drivers go here
 obj-$(CONFIG_FB_UVESA)            += uvesafb.o
