@@ -729,6 +729,14 @@ struct xhci_virt_ep {
 	 */
 	struct xhci_segment	*queued_deq_seg;
 	union xhci_trb		*queued_deq_ptr;
+	/*
+	 * Sometimes the xHC can not process isochronous endpoint ring quickly
+	 * enough, and it will miss some isoc tds on the ring and generate
+	 * a Missed Service Error Event.
+	 * Set skip flag when receive a Missed Service Error Event and
+	 * process the missed tds on the endpoint ring.
+	 */
+	bool			skip;
 };
 
 struct xhci_virt_device {
