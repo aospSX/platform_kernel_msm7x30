@@ -2158,7 +2158,6 @@ static void ftdi_set_termios(struct tty_struct *tty,
 		}
 
 	}
-	return;
 }
 
 static int ftdi_tiocmget(struct tty_struct *tty, struct file *file)
