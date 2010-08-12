@@ -1333,6 +1333,9 @@ static int soc_probe_dai_link(struct snd_soc_card *card, int num)
 				return ret;
 			}
 		}
+
+		soc_init_codec_debugfs(codec);
+
 		/* mark codec as probed and add to card codec list */
 		codec->probed = 1;
 		list_add(&codec->card_list, &card->codec_dev_list);
@@ -1409,8 +1412,6 @@ static int soc_probe_dai_link(struct snd_soc_card *card, int num)
 	ret = device_create_file(&rtd->dev, &dev_attr_codec_reg);
 	if (ret < 0)
 		printk(KERN_WARNING "asoc: failed to add codec sysfs files\n");
-
-	soc_init_codec_debugfs(codec);
 
 	/* create the pcm */
 	ret = soc_new_pcm(rtd, num);
