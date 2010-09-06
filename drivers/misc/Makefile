@@ -56,3 +56,4 @@ obj-$(CONFIG_PMIC8058_MISC) += pmic8058-misc.o
 obj-$(CONFIG_ARM_CHARLCD)	+= arm-charlcd.o
 obj-$(CONFIG_PCH_PHUB)		+= pch_phub.o
 obj-y				+= ti-st/
+obj-$(CONFIG_AB8500_PWM)	+= ab8500-pwm.o
