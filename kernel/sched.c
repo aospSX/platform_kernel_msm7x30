@@ -5146,7 +5146,7 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 
 	cpuset_cpus_allowed(p, cpus_allowed);
 	cpumask_and(new_mask, in_mask, cpus_allowed);
- again:
+again:
 	retval = set_cpus_allowed_ptr(p, new_mask);
 
 	if (!retval) {
@@ -8422,9 +8422,9 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 
 	return 1;
 
- err_free_rq:
+err_free_rq:
 	kfree(cfs_rq);
- err:
+err:
 	return 0;
 }
 
@@ -8512,9 +8512,9 @@ int alloc_rt_sched_group(struct task_group *tg, struct task_group *parent)
 
 	return 1;
 
- err_free_rq:
+err_free_rq:
 	kfree(rt_rq);
- err:
+err:
 	return 0;
 }
 
@@ -8878,7 +8878,7 @@ static int tg_set_bandwidth(struct task_group *tg,
 		raw_spin_unlock(&rt_rq->rt_runtime_lock);
 	}
 	raw_spin_unlock_irq(&tg->rt_bandwidth.rt_runtime_lock);
- unlock:
+unlock:
 	read_unlock(&tasklist_lock);
 	mutex_unlock(&rt_constraints_mutex);
 
