@@ -433,7 +433,6 @@ int lirc_dev_fop_open(struct inode *inode, struct file *file)
 		retval = -ENODEV;
 		goto error;
 	}
-	file->private_data = ir;
 
 	dev_dbg(ir->d.dev, LOGHEAD "open called\n", ir->d.name, ir->d.minor);
 
@@ -531,7 +530,7 @@ long lirc_dev_fop_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	__u32 mode;
 	int result = 0;
-	struct irctl *ir = file->private_data;
+	struct irctl *ir = irctls[iminor(file->f_dentry->d_inode)];
 
 	if (!ir) {
 		printk(KERN_ERR "lirc_dev: %s: no irctl found!\n", __func__);
