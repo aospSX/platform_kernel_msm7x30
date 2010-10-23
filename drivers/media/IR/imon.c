@@ -317,7 +317,7 @@ MODULE_DEVICE_TABLE(usb, imon_usb_id_table);
 
 static bool debug;
 module_param(debug, bool, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(debug, "Debug messages: 0=no, 1=yes(default: no)");
+MODULE_PARM_DESC(debug, "Debug messages: 0=no, 1=yes (default: no)");
 
 /* lcd, vfd, vga or none? should be auto-detected, but can be overridden... */
 static int display_type;
@@ -786,7 +786,7 @@ static struct attribute *imon_display_sysfs_entries[] = {
 	NULL
 };
 
-static struct attribute_group imon_display_attribute_group = {
+static struct attribute_group imon_display_attr_group = {
 	.attrs = imon_display_sysfs_entries
 };
 
@@ -795,7 +795,7 @@ static struct attribute *imon_rf_sysfs_entries[] = {
 	NULL
 };
 
-static struct attribute_group imon_rf_attribute_group = {
+static struct attribute_group imon_rf_attr_group = {
 	.attrs = imon_rf_sysfs_entries
 };
 
@@ -2240,8 +2240,7 @@ static void imon_init_display(struct imon_context *ictx,
 	dev_dbg(ictx->dev, "Registering iMON display with sysfs\n");
 
 	/* set up sysfs entry for built-in clock */
-	ret = sysfs_create_group(&intf->dev.kobj,
-				 &imon_display_attribute_group);
+	ret = sysfs_create_group(&intf->dev.kobj, &imon_display_attr_group);
 	if (ret)
 		dev_err(ictx->dev, "Could not create display sysfs "
 			"entries(%d)", ret);
@@ -2314,7 +2313,7 @@ static int __devinit imon_probe(struct usb_interface *interface,
 	if (ifnum == 0) {
 		if (product == 0xffdc && ictx->rf_device) {
 			sysfs_err = sysfs_create_group(&interface->dev.kobj,
-						       &imon_rf_attribute_group);
+						       &imon_rf_attr_group);
 			if (sysfs_err)
 				pr_err("Could not create RF sysfs entries(%d)\n",
 				       sysfs_err);
@@ -2322,14 +2321,6 @@ static int __devinit imon_probe(struct usb_interface *interface,
 
 		if (ictx->display_supported)
 			imon_init_display(ictx, interface);
-	}
-
-	/* set IR protocol/remote type */
-	ret = imon_ir_change_protocol(ictx, ictx->ir_type);
-	if (ret) {
-		dev_warn(dev, "%s: failed to set IR protocol, falling back "
-			 "to standard iMON protocol mode\n", __func__);
-		ictx->ir_type = IR_TYPE_OTHER;
 	}
 
 	dev_info(dev, "iMON device (%04x:%04x, intf%d) on "
@@ -2370,10 +2361,8 @@ static void __devexit imon_disconnect(struct usb_interface *interface)
 	 * sysfs_remove_group is safe to call even if sysfs_create_group
 	 * hasn't been called
 	 */
-	sysfs_remove_group(&interface->dev.kobj,
-			   &imon_display_attribute_group);
-	sysfs_remove_group(&interface->dev.kobj,
-			   &imon_rf_attribute_group);
+	sysfs_remove_group(&interface->dev.kobj, &imon_display_attr_group);
+	sysfs_remove_group(&interface->dev.kobj, &imon_rf_attr_group);
 
 	usb_set_intfdata(interface, NULL);
 
