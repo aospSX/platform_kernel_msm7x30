@@ -29,7 +29,6 @@ obj-$(CONFIG_R8712U)		+= rtl8712/
 obj-$(CONFIG_SPECTRA)		+= spectra/
 obj-$(CONFIG_TRANZPORT)		+= frontier/
 obj-$(CONFIG_ANDROID)		+= android/
-obj-$(CONFIG_DREAM)		+= dream/
 obj-$(CONFIG_POHMELFS)		+= pohmelfs/
 obj-$(CONFIG_AUTOFS_FS)		+= autofs/
 obj-$(CONFIG_IDE_PHISON)	+= phison/
