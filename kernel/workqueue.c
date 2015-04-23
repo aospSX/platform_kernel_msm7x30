@@ -1921,8 +1921,6 @@ static int rescuer_thread(void *__wq)
 
 	set_user_nice(current, RESCUER_NICE_LEVEL);
 repeat:
-	set_current_state(TASK_INTERRUPTIBLE);
-
 	if (kthread_should_stop())
 		return 0;
 
@@ -1952,6 +1950,7 @@ repeat:
 			if (get_work_cwq(work) == cwq)
 				move_linked_works(work, scheduled, &n);
 
+		__set_current_state(TASK_INTERRUPTIBLE);
 		process_scheduled_works(rescuer);
 		spin_unlock_irq(&gcwq->lock);
 	}
