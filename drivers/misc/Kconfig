@@ -498,23 +498,6 @@ config PMIC8058_MISC
 	  Qualcomm PM8058 chip.  Examples include: signalling when the 32kHz
 	  oscillator malfunctions.
 
-config CABLE_DETECT_8X60
-        boolean "Cable detect driver"
-        depends on ARCH_MSM8X60
-        default n
-        help
-          Detect usb, ac and other accessories.
-
-config CABLE_DETECT_ACCESSORY
-        boolean "CABLE ACCESSORY DETECT"
-        depends on CABLE_DETECT_8X60
-        default n
-
-config CABLE_DETECT_ACCESSORY_BY_ADC
-        boolean "DETECT ACCESSORY BY PMIC ADC"
-        depends on CABLE_DETECT_8X60 && CABLE_DETECT_ACCESSORY
-        default n
-
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
