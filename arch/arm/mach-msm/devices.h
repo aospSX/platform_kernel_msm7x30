@@ -23,6 +23,10 @@
 #include <asm/clkdev.h>
 #endif
 
+extern struct platform_device asoc_msm_pcm;
+extern struct platform_device asoc_msm_dai0;
+extern struct platform_device asoc_msm_dai1;
+
 extern struct platform_device msm_ebi0_thermal;
 extern struct platform_device msm_ebi1_thermal;
 

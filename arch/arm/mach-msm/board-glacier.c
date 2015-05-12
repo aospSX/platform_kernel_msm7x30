@@ -2113,6 +2113,9 @@ MODULE_PARM_DESC(bt_fw_version, "BT's fw version");
 
 static struct platform_device *devices[] __initdata = {
 	&msm_device_uart2,
+	&asoc_msm_pcm,
+	&asoc_msm_dai0,
+	&asoc_msm_dai1,
 #ifdef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 	&glacier_bcm_bt_lpm_device,
 #endif
