@@ -15,6 +15,7 @@
 #include <linux/types.h>
 #include <linux/interrupt.h>
 #include <linux/list.h>
+#include <linux/memblock.h>
 #include <linux/timer.h>
 #include <linux/init.h>
 #include <linux/sysdev.h>
@@ -58,6 +59,12 @@
 #include <plat/mci.h>
 #include <plat/ts.h>
 
+#define H1940_LATCH		((void __force __iomem *)0xF8000000)
+
+#define H1940_PA_LATCH		S3C2410_CS2
+
+#define H1940_LATCH_BIT(x)	(1 << ((x) + 16 - S3C_GPIO_END))
+
 static struct map_desc h1940_iodesc[] __initdata = {
 	[0] = {
 		.virtual	= (unsigned long)H1940_LATCH,
@@ -99,9 +106,15 @@ static struct s3c2410_uartcfg h1940_uartcfgs[] __initdata = {
 
 /* Board control latch control */
 
-static unsigned int latch_state = H1940_LATCH_DEFAULT;
+static unsigned int latch_state = H1940_LATCH_BIT(H1940_LATCH_LCD_P4) |
+	H1940_LATCH_BIT(H1940_LATCH_SM803_ENABLE)	|
+	H1940_LATCH_BIT(H1940_LATCH_SDQ1)			|
+	H1940_LATCH_BIT(H1940_LATCH_LCD_P1)			|
+	H1940_LATCH_BIT(H1940_LATCH_LCD_P2)			|
+	H1940_LATCH_BIT(H1940_LATCH_LCD_P3)			|
+	H1940_LATCH_BIT(H1940_LATCH_MAX1698_nSHUTDOWN);
 
-void h1940_latch_control(unsigned int clear, unsigned int set)
+static void h1940_latch_control(unsigned int clear, unsigned int set)
 {
 	unsigned long flags;
 
@@ -115,7 +128,42 @@ void h1940_latch_control(unsigned int clear, unsigned int set)
 	local_irq_restore(flags);
 }
 
-EXPORT_SYMBOL_GPL(h1940_latch_control);
+static inline int h1940_gpiolib_to_latch(int offset)
+{
+	return 1 << (offset + 16);
+}
+
+static void h1940_gpiolib_latch_set(struct gpio_chip *chip,
+					unsigned offset, int value)
+{
+	int latch_bit = h1940_gpiolib_to_latch(offset);
+
+	h1940_latch_control(value ? 0 : latch_bit,
+		value ? latch_bit : 0);
+}
+
+static int h1940_gpiolib_latch_output(struct gpio_chip *chip,
+					unsigned offset, int value)
+{
+	h1940_gpiolib_latch_set(chip, offset, value);
+	return 0;
+}
+
+static int h1940_gpiolib_latch_get(struct gpio_chip *chip,
+					unsigned offset)
+{
+	return (latch_state >> (offset + 16)) & 1;
+}
+
+struct gpio_chip h1940_latch_gpiochip = {
+	.base			= H1940_LATCH_GPIO(0),
+	.owner			= THIS_MODULE,
+	.label			= "H1940_LATCH",
+	.ngpio			= 16,
+	.direction_output	= h1940_gpiolib_latch_output,
+	.set			= h1940_gpiolib_latch_set,
+	.get			= h1940_gpiolib_latch_get,
+};
 
 static void h1940_udc_pullup(enum s3c2410_udc_cmd_e cmd)
 {
@@ -124,10 +172,10 @@ static void h1940_udc_pullup(enum s3c2410_udc_cmd_e cmd)
 	switch (cmd)
 	{
 		case S3C2410_UDC_P_ENABLE :
-			h1940_latch_control(0, H1940_LATCH_USB_DP);
+			gpio_set_value(H1940_LATCH_USB_DP, 1);
 			break;
 		case S3C2410_UDC_P_DISABLE :
-			h1940_latch_control(H1940_LATCH_USB_DP, 0);
+			gpio_set_value(H1940_LATCH_USB_DP, 0);
 			break;
 		case S3C2410_UDC_P_RESET :
 			break;
@@ -198,10 +246,25 @@ static struct platform_device h1940_device_bluetooth = {
 	.id               = -1,
 };
 
+static void h1940_set_mmc_power(unsigned char power_mode, unsigned short vdd)
+{
+	switch (power_mode) {
+	case MMC_POWER_OFF:
+		gpio_set_value(H1940_LATCH_SD_POWER, 0);
+		break;
+	case MMC_POWER_UP:
+	case MMC_POWER_ON:
+		gpio_set_value(H1940_LATCH_SD_POWER, 1);
+		break;
+	default:
+		break;
+	};
+}
+
 static struct s3c24xx_mci_pdata h1940_mmc_cfg __initdata = {
 	.gpio_detect   = S3C2410_GPF(5),
 	.gpio_wprotect = S3C2410_GPH(8),
-	.set_power     = NULL,
+	.set_power     = h1940_set_mmc_power,
 	.ocr_avail     = MMC_VDD_32_33,
 };
 
@@ -302,6 +365,15 @@ static void __init h1940_map_io(void)
 	memcpy(phys_to_virt(H1940_SUSPEND_RESUMEAT), h1940_pm_return, 1024);
 #endif
 	s3c_pm_init();
+
+	WARN_ON(gpiochip_add(&h1940_latch_gpiochip));
+}
+
+/* H1940 and RX3715 need to reserve this for suspend */
+static void __init h1940_reserve(void)
+{
+	memblock_reserve(0x30003000, 0x1000);
+	memblock_reserve(0x30081000, 0x1000);
 }
 
 static void __init h1940_init_irq(void)
@@ -334,18 +406,22 @@ static void __init h1940_init(void)
 	gpio_request(S3C2410_GPC(0), "LCD power");
 	gpio_request(S3C2410_GPC(5), "LCD power");
 	gpio_request(S3C2410_GPC(6), "LCD power");
-
 	gpio_direction_input(S3C2410_GPC(6));
+
+	gpio_request(H1940_LATCH_USB_DP, "USB pullup");
+	gpio_direction_output(H1940_LATCH_USB_DP, 0);
+
+	gpio_request(H1940_LATCH_SD_POWER, "SD power");
+	gpio_direction_output(H1940_LATCH_SD_POWER, 0);
 
 	platform_add_devices(h1940_devices, ARRAY_SIZE(h1940_devices));
 }
 
 MACHINE_START(H1940, "IPAQ-H1940")
 	/* Maintainer: Ben Dooks <ben-linux@fluff.org> */
-	.phys_io	= S3C2410_PA_UART,
-	.io_pg_offst	= (((u32)S3C24XX_VA_UART) >> 18) & 0xfffc,
 	.boot_params	= S3C2410_SDRAM_PA + 0x100,
 	.map_io		= h1940_map_io,
+	.reserve	= h1940_reserve,
 	.init_irq	= h1940_init_irq,
 	.init_machine	= h1940_init,
 	.timer		= &s3c24xx_timer,

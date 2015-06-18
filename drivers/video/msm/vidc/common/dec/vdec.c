@@ -1229,7 +1229,7 @@ static int vid_dec_get_next_msg(struct video_client_ctx *client_ctx,
 	return 0;
 }
 
-static int vid_dec_ioctl(struct inode *inode, struct file *file,
+static long vid_dec_ioctl(struct file *file,
 			 unsigned cmd, unsigned long u_arg)
 {
 	struct video_client_ctx *client_ctx = NULL;
@@ -1810,7 +1810,7 @@ static const struct file_operations vid_dec_fops = {
 	.owner = THIS_MODULE,
 	.open = vid_dec_open,
 	.release = vid_dec_release,
-	.ioctl = vid_dec_ioctl,
+	.unlocked_ioctl = vid_dec_ioctl,
 };
 
 void vid_dec_interrupt_deregister(void)

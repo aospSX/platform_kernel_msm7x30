@@ -68,10 +68,10 @@
 /*
  * Version numbers
  */
-#define VMXNET3_DRIVER_VERSION_STRING   "1.0.5.0-k"
+#define VMXNET3_DRIVER_VERSION_STRING   "1.0.14.0-k"
 
 /* a 32-bit int, each byte encode a verion number in VMXNET3_DRIVER_VERSION */
-#define VMXNET3_DRIVER_VERSION_NUM      0x01000500
+#define VMXNET3_DRIVER_VERSION_NUM      0x01000E00
 
 
 /*
@@ -301,8 +301,8 @@ struct vmxnet3_adapter {
 	struct net_device              *netdev;
 	struct pci_dev                 *pdev;
 
-	u8				*hw_addr0; /* for BAR 0 */
-	u8				*hw_addr1; /* for BAR 1 */
+	u8			__iomem *hw_addr0; /* for BAR 0 */
+	u8			__iomem *hw_addr1; /* for BAR 1 */
 
 	/* feature control */
 	bool				rxcsum;
@@ -352,10 +352,6 @@ struct vmxnet3_adapter {
 
 #define VMXNET3_MAX_ETH_HDR_SIZE    22
 #define VMXNET3_MAX_SKB_BUF_SIZE    (3*1024)
-
-void set_flag_le16(__le16 *data, u16 flag);
-void set_flag_le64(__le64 *data, u64 flag);
-void reset_flag_le64(__le64 *data, u64 flag);
 
 int
 vmxnet3_quiesce_dev(struct vmxnet3_adapter *adapter);

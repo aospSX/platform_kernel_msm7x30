@@ -522,17 +522,6 @@ static void destroy_inodecache(void)
 	kmem_cache_destroy(ext3_inode_cachep);
 }
 
-static void ext3_clear_inode(struct inode *inode)
-{
-	struct ext3_block_alloc_info *rsv = EXT3_I(inode)->i_block_alloc_info;
-
-	dquot_drop(inode);
-	ext3_discard_reservation(inode);
-	EXT3_I(inode)->i_block_alloc_info = NULL;
-	if (unlikely(rsv))
-		kfree(rsv);
-}
-
 static inline void ext3_show_quota_options(struct seq_file *seq, struct super_block *sb)
 {
 #if defined(CONFIG_QUOTA)
@@ -656,9 +645,6 @@ static int ext3_show_options(struct seq_file *seq, struct vfsmount *vfs)
 	 */
 	seq_puts(seq, ",barrier=");
 	seq_puts(seq, test_opt(sb, BARRIER) ? "1" : "0");
-	if (test_opt(sb, NOBH))
-		seq_puts(seq, ",nobh");
-
 	seq_printf(seq, ",data=%s", data_mode_string(test_opt(sb, DATA_FLAGS)));
 	if (test_opt(sb, DATA_ERR_ABORT))
 		seq_puts(seq, ",data_err=abort");
@@ -778,14 +764,13 @@ static const struct super_operations ext3_sops = {
 	.destroy_inode	= ext3_destroy_inode,
 	.write_inode	= ext3_write_inode,
 	.dirty_inode	= ext3_dirty_inode,
-	.delete_inode	= ext3_delete_inode,
+	.evict_inode	= ext3_evict_inode,
 	.put_super	= ext3_put_super,
 	.sync_fs	= ext3_sync_fs,
 	.freeze_fs	= ext3_freeze,
 	.unfreeze_fs	= ext3_unfreeze,
 	.statfs		= ext3_statfs,
 	.remount_fs	= ext3_remount,
-	.clear_inode	= ext3_clear_inode,
 	.show_options	= ext3_show_options,
 #ifdef CONFIG_QUOTA
 	.quota_read	= ext3_quota_read,
@@ -1250,10 +1235,12 @@ set_qf_format:
 			*n_blocks_count = option;
 			break;
 		case Opt_nobh:
-			set_opt(sbi->s_mount_opt, NOBH);
+			ext3_msg(sb, KERN_WARNING,
+				"warning: ignoring deprecated nobh option");
 			break;
 		case Opt_bh:
-			clear_opt(sbi->s_mount_opt, NOBH);
+			ext3_msg(sb, KERN_WARNING,
+				"warning: ignoring deprecated bh option");
 			break;
 		default:
 			ext3_msg(sb, KERN_ERR,
@@ -1314,9 +1301,9 @@ static int ext3_setup_super(struct super_block *sb, struct ext3_super_block *es,
 		ext3_msg(sb, KERN_WARNING,
 			"warning: mounting fs with errors, "
 			"running e2fsck is recommended");
-	else if ((__s16) le16_to_cpu(es->s_max_mnt_count) >= 0 &&
+	else if ((__s16) le16_to_cpu(es->s_max_mnt_count) > 0 &&
 		 le16_to_cpu(es->s_mnt_count) >=
-		 (unsigned short) (__s16) le16_to_cpu(es->s_max_mnt_count))
+			le16_to_cpu(es->s_max_mnt_count))
 		ext3_msg(sb, KERN_WARNING,
 			"warning: maximal mount count reached, "
 			"running e2fsck is recommended");
@@ -1333,7 +1320,7 @@ static int ext3_setup_super(struct super_block *sb, struct ext3_super_block *es,
                    valid forever! :) */
 	es->s_state &= cpu_to_le16(~EXT3_VALID_FS);
 #endif
-	if (!(__s16) le16_to_cpu(es->s_max_mnt_count))
+	if (!le16_to_cpu(es->s_max_mnt_count))
 		es->s_max_mnt_count = cpu_to_le16(EXT3_DFL_MAX_MNT_COUNT);
 	le16_add_cpu(&es->s_mnt_count, 1);
 	es->s_mtime = cpu_to_le32(get_seconds());
@@ -1642,8 +1629,6 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 	sbi->s_resgid = EXT3_DEF_RESGID;
 	sbi->s_sb_block = sb_block;
 
-	unlock_kernel();
-
 	blocksize = sb_min_blocksize(sb, EXT3_MIN_BLOCK_SIZE);
 	if (!blocksize) {
 		ext3_msg(sb, KERN_ERR, "error: unable to set blocksize");
@@ -1669,7 +1654,7 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 	 * Note: s_es must be initialized as soon as possible because
 	 *       some ext3 macro-instructions depend on its value
 	 */
-	es = (struct ext3_super_block *) (((char *)bh->b_data) + offset);
+	es = (struct ext3_super_block *) (bh->b_data + offset);
 	sbi->s_es = es;
 	sb->s_magic = le16_to_cpu(es->s_magic);
 	if (sb->s_magic != EXT3_SUPER_MAGIC)
@@ -1780,7 +1765,7 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 			       "error: can't read superblock on 2nd try");
 			goto failed_mount;
 		}
-		es = (struct ext3_super_block *)(((char *)bh->b_data) + offset);
+		es = (struct ext3_super_block *)(bh->b_data + offset);
 		sbi->s_es = es;
 		if (es->s_magic != cpu_to_le16(EXT3_SUPER_MAGIC)) {
 			ext3_msg(sb, KERN_ERR,
@@ -1864,8 +1849,8 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 		goto failed_mount;
 	}
 
-	if (le32_to_cpu(es->s_blocks_count) >
-		    (sector_t)(~0ULL) >> (sb->s_blocksize_bits - 9)) {
+	if (generic_check_addressable(sb->s_blocksize_bits,
+				      le32_to_cpu(es->s_blocks_count))) {
 		ext3_msg(sb, KERN_ERR,
 			"error: filesystem is too large to mount safely");
 		if (sizeof(sector_t) < 8)
@@ -1879,13 +1864,13 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 	sbi->s_groups_count = ((le32_to_cpu(es->s_blocks_count) -
 			       le32_to_cpu(es->s_first_data_block) - 1)
 				       / EXT3_BLOCKS_PER_GROUP(sb)) + 1;
-	db_count = (sbi->s_groups_count + EXT3_DESC_PER_BLOCK(sb) - 1) /
-		   EXT3_DESC_PER_BLOCK(sb);
+	db_count = DIV_ROUND_UP(sbi->s_groups_count, EXT3_DESC_PER_BLOCK(sb));
 	sbi->s_group_desc = kmalloc(db_count * sizeof (struct buffer_head *),
 				    GFP_KERNEL);
 	if (sbi->s_group_desc == NULL) {
 		ext3_msg(sb, KERN_ERR,
 			"error: not enough memory");
+		ret = -ENOMEM;
 		goto failed_mount;
 	}
 
@@ -1973,6 +1958,7 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 	}
 	if (err) {
 		ext3_msg(sb, KERN_ERR, "error: insufficient memory");
+		ret = err;
 		goto failed_mount3;
 	}
 
@@ -2003,14 +1989,6 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 		break;
 	}
 
-	if (test_opt(sb, NOBH)) {
-		if (!(test_opt(sb, DATA_FLAGS) == EXT3_MOUNT_WRITEBACK_DATA)) {
-			ext3_msg(sb, KERN_WARNING,
-				"warning: ignoring nobh option - "
-				"it is supported only with writeback mode");
-			clear_opt(sbi->s_mount_opt, NOBH);
-		}
-	}
 	/*
 	 * The journal_load will have done any necessary log recovery,
 	 * so we can safely mount the rest of the filesystem now.
@@ -2048,7 +2026,6 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 		test_opt(sb,DATA_FLAGS) == EXT3_MOUNT_ORDERED_DATA ? "ordered":
 		"writeback");
 
-	lock_kernel();
 	return 0;
 
 cantfind_ext3:
@@ -2078,7 +2055,6 @@ out_fail:
 	sb->s_fs_info = NULL;
 	kfree(sbi->s_blockgroup_lock);
 	kfree(sbi);
-	lock_kernel();
 	return ret;
 }
 
@@ -2191,7 +2167,7 @@ static journal_t *ext3_get_dev_journal(struct super_block *sb,
 		goto out_bdev;
 	}
 
-	es = (struct ext3_super_block *) (((char *)bh->b_data) + offset);
+	es = (struct ext3_super_block *) (bh->b_data + offset);
 	if ((le16_to_cpu(es->s_magic) != EXT3_SUPER_MAGIC) ||
 	    !(le32_to_cpu(es->s_feature_incompat) &
 	      EXT3_FEATURE_INCOMPAT_JOURNAL_DEV)) {
@@ -2384,6 +2360,21 @@ static int ext3_commit_super(struct super_block *sb,
 
 	if (!sbh)
 		return error;
+
+	if (buffer_write_io_error(sbh)) {
+		/*
+		 * Oh, dear.  A previous attempt to write the
+		 * superblock failed.  This could happen because the
+		 * USB device was yanked out.  Or it could happen to
+		 * be a transient write error and maybe the block will
+		 * be remapped.  Nothing we can do but to retry the
+		 * write and hope for the best.
+		 */
+		ext3_msg(sb, KERN_ERR, "previous I/O error to "
+		       "superblock detected");
+		clear_buffer_write_io_error(sbh);
+		set_buffer_uptodate(sbh);
+	}
 	/*
 	 * If the file system is mounted read-only, don't update the
 	 * superblock write time.  This avoids updating the superblock
@@ -2400,8 +2391,15 @@ static int ext3_commit_super(struct super_block *sb,
 	es->s_free_inodes_count = cpu_to_le32(ext3_count_free_inodes(sb));
 	BUFFER_TRACE(sbh, "marking dirty");
 	mark_buffer_dirty(sbh);
-	if (sync)
+	if (sync) {
 		error = sync_dirty_buffer(sbh);
+		if (buffer_write_io_error(sbh)) {
+			ext3_msg(sb, KERN_ERR, "I/O error while writing "
+			       "superblock");
+			clear_buffer_write_io_error(sbh);
+			set_buffer_uptodate(sbh);
+		}
+	}
 	return error;
 }
 
@@ -3028,16 +3026,16 @@ out:
 
 #endif
 
-static int ext3_get_sb(struct file_system_type *fs_type,
-	int flags, const char *dev_name, void *data, struct vfsmount *mnt)
+static struct dentry *ext3_mount(struct file_system_type *fs_type,
+	int flags, const char *dev_name, void *data)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, ext3_fill_super, mnt);
+	return mount_bdev(fs_type, flags, dev_name, data, ext3_fill_super);
 }
 
 static struct file_system_type ext3_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= "ext3",
-	.get_sb		= ext3_get_sb,
+	.mount		= ext3_mount,
 	.kill_sb	= kill_block_super,
 	.fs_flags	= FS_REQUIRES_DEV,
 };

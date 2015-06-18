@@ -248,18 +248,18 @@ static ssize_t wakeup_count_show(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				char *buf)
 {
-	unsigned long val;
+	unsigned int val;
 
-	return pm_get_wakeup_count(&val) ? sprintf(buf, "%lu\n", val) : -EINTR;
+	return pm_get_wakeup_count(&val) ? sprintf(buf, "%u\n", val) : -EINTR;
 }
 
 static ssize_t wakeup_count_store(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				const char *buf, size_t n)
 {
-	unsigned long val;
+	unsigned int val;
 
-	if (sscanf(buf, "%lu", &val) == 1) {
+	if (sscanf(buf, "%u", &val) == 1) {
 		if (pm_save_wakeup_count(val))
 			return n;
 	}
@@ -293,29 +293,27 @@ pm_trace_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 power_attr(pm_trace);
 
-int pm_trace_mask;
-static ssize_t
-pm_trace_mask_show(struct kobject *kobj, struct kobj_attribute *attr,
-			     char *buf)
+int pm_trace_dev_match;
+static ssize_t pm_trace_dev_match_show(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       char *buf)
 {
-	return sprintf(buf, "%d\n", pm_trace_mask);
+#ifdef CONFIG_PM_TRACE_RTC
+	return show_trace_dev_match(buf, PAGE_SIZE);
+#else
+	return sprintf(buf, "%d\n", pm_trace_dev_match);
+#endif
 }
 
 static ssize_t
-pm_trace_mask_store(struct kobject *kobj, struct kobj_attribute *attr,
-	       const char *buf, size_t n)
+pm_trace_dev_match_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t n)
 {
-	int val;
-
-	if (sscanf(buf, "%d", &val) > 0) {
-		pm_trace_mask = val;
-		return n;
-	}
 	return -EINVAL;
 }
 
+power_attr(pm_trace_dev_match);
 
-power_attr(pm_trace_mask);
 #endif /* CONFIG_PM_TRACE */
 
 #ifdef CONFIG_USER_WAKELOCK
@@ -367,7 +365,7 @@ static struct attribute * g[] = {
 	&state_attr.attr,
 #ifdef CONFIG_PM_TRACE
 	&pm_trace_attr.attr,
-	&pm_trace_mask_attr.attr,
+	&pm_trace_dev_match_attr.attr,
 #endif
 #ifdef CONFIG_PM_SLEEP
 	&pm_async_attr.attr,
@@ -396,7 +394,7 @@ EXPORT_SYMBOL_GPL(pm_wq);
 
 static int __init pm_start_workqueue(void)
 {
-	pm_wq = create_freezeable_workqueue("pm");
+	pm_wq = alloc_workqueue("pm", WQ_FREEZEABLE, 0);
 
 	return pm_wq ? 0 : -ENOMEM;
 }

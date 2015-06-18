@@ -14,6 +14,8 @@ config ARCH_MSM7X00A
 	bool "MSM7x00A / MSM7x01A"
 	select ARCH_MSM_ARM11
 	select CPU_V6
+	select MSM_PROC_COMM
+	select HAS_MSM_DEBUG_UART_PHYS
 
 config ARCH_MSM7225
         bool "Qualcomm MSM7225"
@@ -29,6 +31,9 @@ config ARCH_MSM7X30
 	bool "MSM7x30"
 	select ARCH_MSM_SCORPION
 	select CPU_V7
+	select MSM_GPIOMUX
+	select MSM_PROC_COMM
+	select HAS_MSM_DEBUG_UART_PHYS
 	select MSM_MULTIMEDIA_USE_ION
 	select ARM_HAS_SG_CHAIN
 
@@ -36,7 +41,11 @@ config ARCH_QSD8X50
 	bool "QSD8x50"
 	select ARCH_MSM_SCORPION
 	select CPU_V7
+	select MSM_GPIOMUX
+	select MSM_PROC_COMM
+	select HAS_MSM_DEBUG_UART_PHYS
 	select VERIFY_PERMISSION_FAULT
+
 config ARCH_MSM8X60
 	bool "MSM8X60"
 	select ARCH_MSM_SCORPIONMP
@@ -55,6 +64,8 @@ config ARCH_MSM8X60
 	select MSM_RPM
 	select MSM_XO
 	select MSM_GPIOMUX
+	select MACH_MSM8X60_SURF if (!MACH_MSM8X60_RUMI3 && !MACH_MSM8X60_SIM \
+				  && !MACH_MSM8X60_FFA)
 	select MSM_BUS_SCALING
 	select MSM_SECURE_IO
 
@@ -72,6 +83,9 @@ config ARCH_MSM_SCORPION
 	bool
 
 config  ARCH_MSM_SCORPIONMP
+	bool
+
+config HAS_MSM_DEBUG_UART_PHYS
 	bool
 
 config  MSM_VIC
@@ -228,6 +242,7 @@ config MSM_DEBUG_UART
 	default 11 if MSM_DEBUG_UART11
 	default 12 if MSM_DEBUG_UART12
 
+if HAS_MSM_DEBUG_UART_PHYS
 choice
 	prompt "Debug UART"
 
@@ -251,6 +266,7 @@ choice
 	config MSM_DEBUG_UART12
 		bool "UART12"
 endchoice
+endif
 
 config FORCE_WARNING_AS_ERROR
 	bool "Force warning as error"
@@ -684,6 +700,30 @@ config MACH_VIGOR
 	help
 	  Support for the Vigor device.
 
+config MACH_MSM8X60_RUMI3
+	depends on ARCH_MSM8X60
+	bool "MSM8x60 RUMI3"
+	help
+	  Support for the Qualcomm MSM8x60 RUMI3 emulator.
+
+config MACH_MSM8X60_SURF
+	depends on ARCH_MSM8X60
+	bool "MSM8x60 SURF"
+	help
+	  Support for the Qualcomm MSM8x60 SURF eval board.
+
+config MACH_MSM8X60_SIM
+	depends on ARCH_MSM8X60
+	bool "MSM8x60 Simulator"
+	help
+	  Support for the Qualcomm MSM8x60 simulator.
+
+config MACH_MSM8X60_FFA
+	depends on ARCH_MSM8X60
+	bool "MSM8x60 FFA"
+	help
+	  Support for the Qualcomm MSM8x60 FFA eval board.
+
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
 	default n
@@ -1030,6 +1070,12 @@ config MSM_SERIAL_DEBUGGER_CONSOLE
 	help
 	  Enables a console so that printk messages are displayed on
 	  the debugger serial port as the occur.
+
+config MSM_SMD_PKG3
+	bool
+
+config MSM_PROC_COMM
+	bool
 
 config MSM_SMD
 	default y

@@ -133,6 +133,7 @@ static const struct file_operations pm_qos_power_fops = {
 	.read = pm_qos_power_read,
 	.open = pm_qos_power_open,
 	.release = pm_qos_power_release,
+	.llseek = noop_llseek,
 };
 
 /* unlocked internal variant */
@@ -378,7 +379,7 @@ static int pm_qos_power_open(struct inode *inode, struct file *filp)
 
 	pm_qos_class = find_pm_qos_object_by_minor(iminor(inode));
 	if (pm_qos_class >= 0) {
-		struct pm_qos_request *req = kzalloc(GFP_KERNEL, sizeof(*req));
+               struct pm_qos_request *req = kzalloc(sizeof(*req), GFP_KERNEL);
 		if (!req)
 			return -ENOMEM;
 

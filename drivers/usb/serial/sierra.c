@@ -622,8 +622,6 @@ static void sierra_indat_callback(struct urb *urb)
 			dev_err(&port->dev, "resubmit read urb failed."
 				"(%d)\n", err);
 	}
-
-	return;
 }
 
 static void sierra_instat_callback(struct urb *urb)

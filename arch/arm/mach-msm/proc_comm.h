@@ -16,6 +16,8 @@
 #ifndef _ARCH_ARM_MACH_MSM_PROC_COMM_H_
 #define _ARCH_ARM_MACH_MSM_PROC_COMM_H_
 
+#include <linux/init.h>
+
 enum {
 	PCOM_CMD_IDLE = 0x0,
 	PCOM_CMD_DONE,
@@ -234,8 +236,8 @@ enum vreg_pdown_id {
 };
 
 enum {
-        PCOM_CLKRGM_APPS_RESET_USB_PHY  = 34,
-        PCOM_CLKRGM_APPS_RESET_USBH     = 37,
+	PCOM_CLKRGM_APPS_RESET_USB_PHY	= 34,
+	PCOM_CLKRGM_APPS_RESET_USBH	= 37,
 };
 
 /* gpio info for PCOM_RPC_GPIO_TLMM_CONFIG_EX */
@@ -269,5 +271,6 @@ enum {
 
 void msm_proc_comm_reset_modem_now(void);
 int msm_proc_comm(unsigned cmd, unsigned *data1, unsigned *data2);
+void __init proc_comm_boot_wait(void);
 
 #endif

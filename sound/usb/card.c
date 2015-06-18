@@ -222,7 +222,7 @@ static int snd_usb_create_streams(struct snd_usb_audio *chip, int ctrlif)
 		/* fall through */
 
 	case UAC_VERSION_1: {
-		struct uac_ac_header_descriptor_v1 *h1 = control_header;
+		struct uac1_ac_header_descriptor *h1 = control_header;
 
 		if (!h1->bInCollection) {
 			snd_printk(KERN_INFO "skipping empty audio interface (v1)\n");
@@ -300,9 +300,13 @@ static int snd_usb_audio_create(struct usb_device *dev, int idx,
 
 	*rchip = NULL;
 
-	if (snd_usb_get_speed(dev) != USB_SPEED_LOW &&
-	    snd_usb_get_speed(dev) != USB_SPEED_FULL &&
-	    snd_usb_get_speed(dev) != USB_SPEED_HIGH) {
+	switch (snd_usb_get_speed(dev)) {
+	case USB_SPEED_LOW:
+	case USB_SPEED_FULL:
+	case USB_SPEED_HIGH:
+	case USB_SPEED_SUPER:
+		break;
+	default:
 		snd_printk(KERN_ERR "unknown device speed %d\n", snd_usb_get_speed(dev));
 		return -ENXIO;
 	}
@@ -378,11 +382,22 @@ static int snd_usb_audio_create(struct usb_device *dev, int idx,
 	if (len < sizeof(card->longname))
 		usb_make_path(dev, card->longname + len, sizeof(card->longname) - len);
 
-	strlcat(card->longname,
-		snd_usb_get_speed(dev) == USB_SPEED_LOW ? ", low speed" :
-		snd_usb_get_speed(dev) == USB_SPEED_FULL ? ", full speed" :
-		", high speed",
-		sizeof(card->longname));
+	switch (snd_usb_get_speed(dev)) {
+	case USB_SPEED_LOW:
+		strlcat(card->longname, ", low speed", sizeof(card->longname));
+		break;
+	case USB_SPEED_FULL:
+		strlcat(card->longname, ", full speed", sizeof(card->longname));
+		break;
+	case USB_SPEED_HIGH:
+		strlcat(card->longname, ", high speed", sizeof(card->longname));
+		break;
+	case USB_SPEED_SUPER:
+		strlcat(card->longname, ", super speed", sizeof(card->longname));
+		break;
+	default:
+		break;
+	}
 
 	snd_usb_audio_create_proc(chip);
 

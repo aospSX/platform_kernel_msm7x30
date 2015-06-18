@@ -171,6 +171,21 @@ struct platform_device msm_device_vpe = {
 };
 #endif
 
+struct platform_device asoc_msm_pcm = {
+	.name	= "msm-dsp-audio",
+	.id	= 0,
+};
+
+struct platform_device asoc_msm_dai0 = {
+	.name	= "msm-codec-dai",
+	.id	= 0,
+};
+
+struct platform_device asoc_msm_dai1 = {
+	.name	= "msm-cpu-dai",
+	.id	= 0,
+};
+
 #ifdef CONFIG_MSM_KGSL
 static struct resource kgsl_3d0_resources[] = {
 	{

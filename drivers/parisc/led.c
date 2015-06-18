@@ -346,8 +346,8 @@ static __inline__ int led_get_net_activity(void)
 #ifndef CONFIG_NET
 	return 0;
 #else
-	static unsigned long rx_total_last, tx_total_last;
-	unsigned long rx_total, tx_total;
+	static u64 rx_total_last, tx_total_last;
+	u64 rx_total, tx_total;
 	struct net_device *dev;
 	int retval;
 
@@ -356,13 +356,14 @@ static __inline__ int led_get_net_activity(void)
 	/* we are running as a workqueue task, so we can use an RCU lookup */
 	rcu_read_lock();
 	for_each_netdev_rcu(&init_net, dev) {
-	    const struct net_device_stats *stats;
+	    const struct rtnl_link_stats64 *stats;
+	    struct rtnl_link_stats64 temp;
 	    struct in_device *in_dev = __in_dev_get_rcu(dev);
 	    if (!in_dev || !in_dev->ifa_list)
 		continue;
 	    if (ipv4_is_loopback(in_dev->ifa_list->ifa_local))
 		continue;
-	    stats = dev_get_stats(dev);
+	    stats = dev_get_stats(dev, &temp);
 	    rx_total += stats->rx_packets;
 	    tx_total += stats->tx_packets;
 	}

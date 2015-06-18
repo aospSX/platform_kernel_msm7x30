@@ -3,16 +3,18 @@ obj-y += io.o dma.o memory.o
 ifdef CONFIG_ARCH_MSM8X60
 obj-y += timer-8x60.o clock-core.o clock-voter.o
 else
-obj-y += timer.o clock.o
+obj-y += timer.o
 endif
 obj-y += subsystem_map.o
 
 ifndef CONFIG_ARCH_MSM8X60
-obj-y += irq.o devices.o pmic.o vreg.o pwrtest.o
+obj-y += irq.o devices.o pmic.o pwrtest.o
 endif
 
+obj-$(CONFIG_ARCH_MSM8X60) += clock-dummy.o iommu.o iommu_dev.o devices-msm8x60-iommu.o
+obj-$(CONFIG_MSM_PROC_COMM) += proc_comm.o vreg.o
+obj-$(CONFIG_MSM_PROC_COMM) += clock.o
 obj-$(CONFIG_ARCH_QSD8X50) += sirc.o
-obj-y += proc_comm.o
 obj-$(CONFIG_ARCH_MSM_ARM11) += acpuclock-arm11.o idle.o
 obj-$(CONFIG_ARCH_QSD8X50) += arch-init-scorpion.o acpuclock-scorpion.o
 obj-$(CONFIG_ARCH_MSM7X30) += acpuclock-7x30.o internal_power_rail.o
@@ -420,7 +422,10 @@ ifdef CONFIG_VCM
 obj-$(CONFIG_ARCH_MSM8X60) += board-msm8x60-vcm.o
 endif
 
+obj-$(CONFIG_ARCH_MSM7X30) += gpiomux-7x30.o gpiomux-v1.o gpiomux.o
+obj-$(CONFIG_ARCH_QSD8X50) += gpiomux-8x50.o gpiomux-v1.o gpiomux.o
 obj-$(CONFIG_ARCH_MSM8X60) += gpiomux-8x60.o gpiomux-v2.o gpiomux.o
+
 ifdef CONFIG_MSM_V2_TLMM
 obj-y	+= gpio-v2.o
 else

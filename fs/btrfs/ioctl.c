@@ -712,7 +712,6 @@ static noinline int btrfs_ioctl_resize(struct btrfs_root *root,
 	char *sizestr;
 	char *devstr = NULL;
 	int ret = 0;
-	int namelen;
 	int mod = 0;
 
 	if (root->fs_info->sb->s_flags & MS_RDONLY)
@@ -726,7 +725,6 @@ static noinline int btrfs_ioctl_resize(struct btrfs_root *root,
 		return PTR_ERR(vol_args);
 
 	vol_args->name[BTRFS_PATH_NAME_MAX] = '\0';
-	namelen = strlen(vol_args->name);
 
 	mutex_lock(&root->fs_info->volume_mutex);
 	sizestr = vol_args->name;
@@ -1077,14 +1075,10 @@ static noinline int btrfs_ioctl_tree_search(struct file *file,
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	args = kmalloc(sizeof(*args), GFP_KERNEL);
-	if (!args)
-		return -ENOMEM;
+	args = memdup_user(argp, sizeof(*args));
+	if (IS_ERR(args))
+		return PTR_ERR(args);
 
-	if (copy_from_user(args, argp, sizeof(*args))) {
-		kfree(args);
-		return -EFAULT;
-	}
 	inode = fdentry(file)->d_inode;
 	ret = search_ioctl(inode, args);
 	if (ret == 0 && copy_to_user(argp, args, sizeof(*args)))
@@ -1192,14 +1186,10 @@ static noinline int btrfs_ioctl_ino_lookup(struct file *file,
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	args = kmalloc(sizeof(*args), GFP_KERNEL);
-	if (!args)
-		return -ENOMEM;
+	args = memdup_user(argp, sizeof(*args));
+	if (IS_ERR(args))
+		return PTR_ERR(args);
 
-	if (copy_from_user(args, argp, sizeof(*args))) {
-		kfree(args);
-		return -EFAULT;
-	}
 	inode = fdentry(file)->d_inode;
 
 	if (args->treeid == 0)
@@ -1506,11 +1496,11 @@ static noinline long btrfs_ioctl_clone(struct file *file, unsigned long srcfd,
 	path->reada = 2;
 
 	if (inode < src) {
-		mutex_lock(&inode->i_mutex);
-		mutex_lock(&src->i_mutex);
+		mutex_lock_nested(&inode->i_mutex, I_MUTEX_PARENT);
+		mutex_lock_nested(&src->i_mutex, I_MUTEX_CHILD);
 	} else {
-		mutex_lock(&src->i_mutex);
-		mutex_lock(&inode->i_mutex);
+		mutex_lock_nested(&src->i_mutex, I_MUTEX_PARENT);
+		mutex_lock_nested(&inode->i_mutex, I_MUTEX_CHILD);
 	}
 
 	/* determine range to clone */
@@ -1534,13 +1524,15 @@ static noinline long btrfs_ioctl_clone(struct file *file, unsigned long srcfd,
 	while (1) {
 		struct btrfs_ordered_extent *ordered;
 		lock_extent(&BTRFS_I(src)->io_tree, off, off+len, GFP_NOFS);
-		ordered = btrfs_lookup_first_ordered_extent(inode, off+len);
-		if (BTRFS_I(src)->delalloc_bytes == 0 && !ordered)
+		ordered = btrfs_lookup_first_ordered_extent(src, off+len);
+		if (!ordered &&
+		    !test_range_bit(&BTRFS_I(src)->io_tree, off, off+len,
+				   EXTENT_DELALLOC, 0, NULL))
 			break;
 		unlock_extent(&BTRFS_I(src)->io_tree, off, off+len, GFP_NOFS);
 		if (ordered)
 			btrfs_put_ordered_extent(ordered);
-		btrfs_wait_ordered_range(src, off, off+len);
+		btrfs_wait_ordered_range(src, off, len);
 	}
 
 	/* clone data */
@@ -1609,7 +1601,7 @@ static noinline long btrfs_ioctl_clone(struct file *file, unsigned long srcfd,
 			}
 			btrfs_release_path(root, path);
 
-			if (key.offset + datal < off ||
+			if (key.offset + datal <= off ||
 			    key.offset >= off+len)
 				goto next;
 
@@ -1883,6 +1875,22 @@ static long btrfs_ioctl_default_subvol(struct file *file, void __user *argp)
 	return 0;
 }
 
+static void get_block_group_info(struct list_head *groups_list,
+				 struct btrfs_ioctl_space_info *space)
+{
+	struct btrfs_block_group_cache *block_group;
+
+	space->total_bytes = 0;
+	space->used_bytes = 0;
+	space->flags = 0;
+	list_for_each_entry(block_group, groups_list, list) {
+		space->flags = block_group->flags;
+		space->total_bytes += block_group->key.offset;
+		space->used_bytes +=
+			btrfs_block_group_used(&block_group->item);
+	}
+}
+
 long btrfs_ioctl_space_info(struct btrfs_root *root, void __user *arg)
 {
 	struct btrfs_ioctl_space_args space_args;
@@ -1891,27 +1899,56 @@ long btrfs_ioctl_space_info(struct btrfs_root *root, void __user *arg)
 	struct btrfs_ioctl_space_info *dest_orig;
 	struct btrfs_ioctl_space_info *user_dest;
 	struct btrfs_space_info *info;
+	u64 types[] = {BTRFS_BLOCK_GROUP_DATA,
+		       BTRFS_BLOCK_GROUP_SYSTEM,
+		       BTRFS_BLOCK_GROUP_METADATA,
+		       BTRFS_BLOCK_GROUP_DATA | BTRFS_BLOCK_GROUP_METADATA};
+	int num_types = 4;
 	int alloc_size;
 	int ret = 0;
 	int slot_count = 0;
+	int i, c;
 
 	if (copy_from_user(&space_args,
 			   (struct btrfs_ioctl_space_args __user *)arg,
 			   sizeof(space_args)))
 		return -EFAULT;
 
-	/* first we count slots */
-	rcu_read_lock();
-	list_for_each_entry_rcu(info, &root->fs_info->space_info, list)
-		slot_count++;
-	rcu_read_unlock();
+	for (i = 0; i < num_types; i++) {
+		struct btrfs_space_info *tmp;
+
+		info = NULL;
+		rcu_read_lock();
+		list_for_each_entry_rcu(tmp, &root->fs_info->space_info,
+					list) {
+			if (tmp->flags == types[i]) {
+				info = tmp;
+				break;
+			}
+		}
+		rcu_read_unlock();
+
+		if (!info)
+			continue;
+
+		down_read(&info->groups_sem);
+		for (c = 0; c < BTRFS_NR_RAID_TYPES; c++) {
+			if (!list_empty(&info->block_groups[c]))
+				slot_count++;
+		}
+		up_read(&info->groups_sem);
+	}
 
 	/* space_slots == 0 means they are asking for a count */
 	if (space_args.space_slots == 0) {
 		space_args.total_spaces = slot_count;
 		goto out;
 	}
+
+	slot_count = min_t(int, space_args.space_slots, slot_count);
+
 	alloc_size = sizeof(*dest) * slot_count;
+
 	/* we generally have at most 6 or so space infos, one for each raid
 	 * level.  So, a whole page should be more than enough for everyone
 	 */
@@ -1925,27 +1962,34 @@ long btrfs_ioctl_space_info(struct btrfs_root *root, void __user *arg)
 	dest_orig = dest;
 
 	/* now we have a buffer to copy into */
-	rcu_read_lock();
-	list_for_each_entry_rcu(info, &root->fs_info->space_info, list) {
-		/* make sure we don't copy more than we allocated
-		 * in our buffer
-		 */
-		if (slot_count == 0)
-			break;
-		slot_count--;
+	for (i = 0; i < num_types; i++) {
+		struct btrfs_space_info *tmp;
 
-		/* make sure userland has enough room in their buffer */
-		if (space_args.total_spaces >= space_args.space_slots)
-			break;
+		info = NULL;
+		rcu_read_lock();
+		list_for_each_entry_rcu(tmp, &root->fs_info->space_info,
+					list) {
+			if (tmp->flags == types[i]) {
+				info = tmp;
+				break;
+			}
+		}
+		rcu_read_unlock();
 
-		space.flags = info->flags;
-		space.total_bytes = info->total_bytes;
-		space.used_bytes = info->bytes_used;
-		memcpy(dest, &space, sizeof(space));
-		dest++;
-		space_args.total_spaces++;
+		if (!info)
+			continue;
+		down_read(&info->groups_sem);
+		for (c = 0; c < BTRFS_NR_RAID_TYPES; c++) {
+			if (!list_empty(&info->block_groups[c])) {
+				get_block_group_info(&info->block_groups[c],
+						     &space);
+				memcpy(dest, &space, sizeof(space));
+				dest++;
+				space_args.total_spaces++;
+			}
+		}
+		up_read(&info->groups_sem);
 	}
-	rcu_read_unlock();
 
 	user_dest = (struct btrfs_ioctl_space_info *)
 		(arg + sizeof(struct btrfs_ioctl_space_args));
@@ -1986,6 +2030,36 @@ long btrfs_ioctl_trans_end(struct file *file)
 
 	mnt_drop_write(file->f_path.mnt);
 	return 0;
+}
+
+static noinline long btrfs_ioctl_start_sync(struct file *file, void __user *argp)
+{
+	struct btrfs_root *root = BTRFS_I(file->f_dentry->d_inode)->root;
+	struct btrfs_trans_handle *trans;
+	u64 transid;
+
+	trans = btrfs_start_transaction(root, 0);
+	transid = trans->transid;
+	btrfs_commit_transaction_async(trans, root, 0);
+
+	if (argp)
+		if (copy_to_user(argp, &transid, sizeof(transid)))
+			return -EFAULT;
+	return 0;
+}
+
+static noinline long btrfs_ioctl_wait_sync(struct file *file, void __user *argp)
+{
+	struct btrfs_root *root = BTRFS_I(file->f_dentry->d_inode)->root;
+	u64 transid;
+
+	if (argp) {
+		if (copy_from_user(&transid, argp, sizeof(transid)))
+			return -EFAULT;
+	} else {
+		transid = 0;  /* current trans */
+	}
+	return btrfs_wait_for_commit(root, transid);
 }
 
 long btrfs_ioctl(struct file *file, unsigned int
@@ -2038,6 +2112,10 @@ long btrfs_ioctl(struct file *file, unsigned int
 	case BTRFS_IOC_SYNC:
 		btrfs_sync_fs(file->f_dentry->d_sb, 1);
 		return 0;
+	case BTRFS_IOC_START_SYNC:
+		return btrfs_ioctl_start_sync(file, argp);
+	case BTRFS_IOC_WAIT_SYNC:
+		return btrfs_ioctl_wait_sync(file, argp);
 	}
 
 	return -ENOTTY;

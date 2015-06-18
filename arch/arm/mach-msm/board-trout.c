@@ -841,9 +841,8 @@ static struct map_desc trout_io_desc[] __initdata = {
 static void __init trout_fixup(struct machine_desc *desc, struct tag *tags,
 				char **cmdline, struct meminfo *mi)
 {
-	mi->nr_banks=1;
+	mi->nr_banks = 1;
 	mi->bank[0].start = PHYS_OFFSET;
-	mi->bank[0].node = PHYS_TO_NID(PHYS_OFFSET);
 	mi->bank[0].size = (101*1024*1024);
 }
 
@@ -857,8 +856,6 @@ static void __init trout_map_io(void)
 MACHINE_START(TROUT, "trout")
 /* Maintainer: Brian Swetland <swetland@google.com> */
 #ifdef CONFIG_MSM_DEBUG_UART
-	.phys_io        = MSM_DEBUG_UART_PHYS,
-	.io_pg_offst    = ((MSM_DEBUG_UART_BASE) >> 18) & 0xfffc,
 #endif
 	.boot_params    = 0x10000100,
 	.fixup          = trout_fixup,

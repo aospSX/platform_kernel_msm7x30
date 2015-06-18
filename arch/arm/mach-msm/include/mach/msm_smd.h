@@ -23,6 +23,8 @@
 
 typedef struct smd_channel smd_channel_t;
 
+extern int (*msm_check_for_modem_crash)(void);
+
 /* warning: notify() may be called before open returns */
 int smd_open(const char *name, smd_channel_t **ch, void *priv,
 	     void (*notify)(void *priv, unsigned event));
@@ -69,8 +71,7 @@ int smd_wait_until_opened(smd_channel_t *ch, int timeout_us);
 
 int smd_total_fifo_size(smd_channel_t *ch);
 
-typedef enum
-{
+typedef enum {
 	SMD_PORT_DS = 0,
 	SMD_PORT_DIAG,
 	SMD_PORT_RPC_CALL,
